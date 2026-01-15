@@ -1,62 +1,55 @@
+require('dotenv').config();
 const express = require('express');
-// const Razorpay = require('razorpay');
 const crypto = require('crypto');
 const cors = require('cors');
-// require('dotenv').config();
+const { Pool } = require('pg');
 
 const app = express();
 app.use(cors());
 
-// 🔴 Webhook needs RAW body
+// PostgreSQL pool setup
+const pool = new Pool({
+  host: process.env.PG_HOST,
+  database: process.env.PG_DB,
+  user: process.env.PG_USER,
+  password: process.env.PG_PASS,
+  port: 5432,
+  ssl: { rejectUnauthorized: false },
+});
+
+// Raw parser for webhook
 app.use('/razorpay-webhook', express.raw({ type: 'application/json' }));
 app.use(express.json());
 
-// ✅ Razorpay instance (MANDATORY)
-// const razorpay = new Razorpay({
-//   key_id: process.env.RAZORPAY_KEY_ID,
-//   key_secret: process.env.RAZORPAY_KEY_SECRET
-// });
+// Save client data API
+app.post('/api/save-client', async (req, res) => {
+  try {
+    const {
+      name, phone, email, dob, age, batchMode, category,
+      offerTitle, course, baseAmount, gstAmount, totalAmount
+    } = req.body;
 
-/* =============================
-   CREATE ORDER API
-============================= */
-// app.post('/create-order', async (req, res) => {
-//   try {
-//     const { amount, name, email, phone, batchMode, category, age } = req.body;
+    const query = `
+      INSERT INTO clients
+      (name, phone, email, dob, age, batch_mode, category, offer_title, course, base_amount, gst_amount, total_amount)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+      RETURNING id
+    `;
 
-//     if (!amount || !name || !email) {
-//       return res.status(400).json({ error: 'Invalid data' });
-//     }
+    const values = [name, phone, email, dob, age, batchMode, category, offerTitle, course, baseAmount, gstAmount, totalAmount];
 
-//     const order = await razorpay.orders.create({
-//       amount: amount * 100, // paise
-//       currency: 'INR',
-//       receipt: `rcpt_${Date.now()}`,
-//       notes: {
-//         name,
-//         email,
-//         phone,
-//         batchMode,
-//         category,
-//         age
-//       }
-//     });
+    const result = await pool.query(query, values);
 
-//     res.json(order);
+    res.status(201).json({ message: 'Client saved', id: result.rows[0].id });
+  } catch (error) {
+    console.error('Error saving client:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
 
-//   } catch (err) {
-//     console.error(err);
-//     res.status(500).json({ error: 'Order creation failed' });
-//   }
-// });
-
-/* =============================
-   RAZORPAY WEBHOOK
-============================= */
+// Razorpay webhook
 app.post('/razorpay-webhook', (req, res) => {
-
   const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
-
   const signature = req.headers['x-razorpay-signature'];
 
   const expectedSignature = crypto
@@ -78,19 +71,12 @@ app.post('/razorpay-webhook', (req, res) => {
     console.log('Amount:', payment.amount / 100);
     console.log('Email:', payment.email);
 
-    // 👉 SAVE TO DATABASE
-    // 👉 ACTIVATE COURSE
-    // 👉 SEND WHATSAPP MESSAGE
+    // TODO: Update your DB here with payment details & activate user course
+
   }
 
   res.json({ status: 'ok' });
 });
 
-/* =============================
-   START SERVER
-============================= */
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () =>
-  console.log(`🚀 Server running on port ${PORT}`)
-);
-
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
