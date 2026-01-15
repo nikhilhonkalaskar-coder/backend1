@@ -1,4 +1,4 @@
-require('dotenv').config();
+// require('dotenv').config();
 const express = require('express');
 const crypto = require('crypto');
 const cors = require('cors');
@@ -80,3 +80,4 @@ app.post('/razorpay-webhook', (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+
