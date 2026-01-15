@@ -7,17 +7,16 @@ const { Pool } = require('pg');
 const app = express();
 
 /* =========================
-   CORS (VERY IMPORTANT)
+   CORS (NODE 22 SAFE)
 ========================= */
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
-app.options('*', cors());
 
 /* =========================
-   NORMAL JSON (ALL APIs)
+   JSON FOR NORMAL APIs
 ========================= */
 app.use(express.json());
 
@@ -34,7 +33,7 @@ const pool = new Pool({
 });
 
 /* =========================
-   SAVE CLIENT API
+   SAVE CLIENT
 ========================= */
 app.post('/api/save-client', async (req, res) => {
   try {
@@ -52,37 +51,31 @@ app.post('/api/save-client', async (req, res) => {
       totalAmount
     } = req.body;
 
-    const query = `
-      INSERT INTO clients
-      (name, phone, email, dob, age, batch_mode, offer_title, course, base_amount, gst_amount, total_amount)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-      RETURNING id
-    `;
+    const result = await pool.query(
+      `INSERT INTO clients
+       (name, phone, email, dob, age, batch_mode, offer_title, course, base_amount, gst_amount, total_amount)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+       RETURNING id`,
+      [
+        name,
+        phone,
+        email,
+        dob,
+        age,
+        batchMode,
+        offerTitle,
+        course,
+        baseAmount,
+        gstAmount,
+        totalAmount
+      ]
+    );
 
-    const values = [
-      name,
-      phone,
-      email,
-      dob,
-      age,
-      batchMode,
-      offerTitle,
-      course,
-      baseAmount,
-      gstAmount,
-      totalAmount
-    ];
+    res.json({ success: true, id: result.rows[0].id });
 
-    const result = await pool.query(query, values);
-
-    res.status(201).json({
-      success: true,
-      id: result.rows[0].id
-    });
-
-  } catch (error) {
-    console.error('❌ Save client error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+  } catch (err) {
+    console.error('Save client error:', err);
+    res.status(500).json({ error: 'Internal error' });
   }
 });
 
@@ -97,33 +90,34 @@ app.post(
     const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
     const signature = req.headers['x-razorpay-signature'];
 
-    const expectedSignature = crypto
+    const expected = crypto
       .createHmac('sha256', secret)
       .update(req.body)
       .digest('hex');
 
-    if (signature !== expectedSignature) {
+    if (signature !== expected) {
       return res.status(400).send('Invalid signature');
     }
 
     const event = JSON.parse(req.body.toString());
 
     if (event.event === 'payment.captured') {
-      const payment = event.payload.payment.entity;
+      const p = event.payload.payment.entity;
 
       console.log('✅ PAYMENT SUCCESS');
-      console.log('Payment ID:', payment.id);
-      console.log('Amount:', payment.amount / 100);
-      console.log('Email:', payment.email);
+      console.log(p.id, p.amount / 100, p.email);
 
-      // TODO: Update DB payment status here
+      // 👉 Update DB using email / phone
     }
 
     res.json({ status: 'ok' });
   }
 );
 
+/* =========================
+   START SERVER
+========================= */
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () =>
-  console.log(`🚀 Server running on port ${PORT}`)
+  console.log(`🚀 Server running on ${PORT}`)
 );
