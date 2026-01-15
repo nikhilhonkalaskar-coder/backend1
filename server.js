@@ -1,5 +1,5 @@
 const express = require('express');
-const Razorpay = require('razorpay');
+// const Razorpay = require('razorpay');
 const crypto = require('crypto');
 const cors = require('cors');
 // require('dotenv').config();
@@ -12,43 +12,43 @@ app.use('/razorpay-webhook', express.raw({ type: 'application/json' }));
 app.use(express.json());
 
 // ✅ Razorpay instance (MANDATORY)
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID,
-  key_secret: process.env.RAZORPAY_KEY_SECRET
-});
+// const razorpay = new Razorpay({
+//   key_id: process.env.RAZORPAY_KEY_ID,
+//   key_secret: process.env.RAZORPAY_KEY_SECRET
+// });
 
 /* =============================
    CREATE ORDER API
 ============================= */
-app.post('/create-order', async (req, res) => {
-  try {
-    const { amount, name, email, phone, batchMode, category, age } = req.body;
+// app.post('/create-order', async (req, res) => {
+//   try {
+//     const { amount, name, email, phone, batchMode, category, age } = req.body;
 
-    if (!amount || !name || !email) {
-      return res.status(400).json({ error: 'Invalid data' });
-    }
+//     if (!amount || !name || !email) {
+//       return res.status(400).json({ error: 'Invalid data' });
+//     }
 
-    const order = await razorpay.orders.create({
-      amount: amount * 100, // paise
-      currency: 'INR',
-      receipt: `rcpt_${Date.now()}`,
-      notes: {
-        name,
-        email,
-        phone,
-        batchMode,
-        category,
-        age
-      }
-    });
+//     const order = await razorpay.orders.create({
+//       amount: amount * 100, // paise
+//       currency: 'INR',
+//       receipt: `rcpt_${Date.now()}`,
+//       notes: {
+//         name,
+//         email,
+//         phone,
+//         batchMode,
+//         category,
+//         age
+//       }
+//     });
 
-    res.json(order);
+//     res.json(order);
 
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Order creation failed' });
-  }
-});
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ error: 'Order creation failed' });
+//   }
+// });
 
 /* =============================
    RAZORPAY WEBHOOK
@@ -93,3 +93,4 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () =>
   console.log(`🚀 Server running on port ${PORT}`)
 );
+
