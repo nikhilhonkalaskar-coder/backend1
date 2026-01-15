@@ -1,105 +1,95 @@
-
 const express = require('express');
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
 const cors = require('cors');
+// require('dotenv').config();
 
 const app = express();
+app.use(cors());
 
-/* ---------------- CORS ---------------- */
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST']
-}));
-
-/* ---------------- JSON (normal APIs) ---------------- */
+// 🔴 Webhook needs RAW body
+app.use('/razorpay-webhook', express.raw({ type: 'application/json' }));
 app.use(express.json());
 
-/* ---------------- RAZORPAY INSTANCE ---------------- */
+// ✅ Razorpay instance (MANDATORY)
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
-  key_secret: process.env.RAZORPAY_SECRET
+  key_secret: process.env.RAZORPAY_KEY_SECRET
 });
 
-/* ---------------- HEALTH CHECK ---------------- */
-app.get('/', (req, res) => {
-  res.send('Backend running OK');
-});
-
-/* ---------------- SEND KEY (SAFE) ---------------- */
-app.get('/razorpay-key', (req, res) => {
-  res.json({ key: process.env.RAZORPAY_KEY_ID });
-});
-
-/* ---------------- CREATE ORDER ---------------- */
+/* =============================
+   CREATE ORDER API
+============================= */
 app.post('/create-order', async (req, res) => {
   try {
-    const { amount, name, email } = req.body;
+    const { amount, name, email, phone, batchMode, category, age } = req.body;
 
-    if (!amount) {
-      return res.status(400).json({ error: 'Amount missing' });
+    if (!amount || !name || !email) {
+      return res.status(400).json({ error: 'Invalid data' });
     }
 
     const order = await razorpay.orders.create({
-      amount: amount * 100,
+      amount: amount * 100, // paise
       currency: 'INR',
       receipt: `rcpt_${Date.now()}`,
-      notes: { name, email }
+      notes: {
+        name,
+        email,
+        phone,
+        batchMode,
+        category,
+        age
+      }
     });
 
     res.json(order);
 
   } catch (err) {
-    console.error('Order Error:', err);
+    console.error(err);
     res.status(500).json({ error: 'Order creation failed' });
   }
 });
 
-/* ---------------- WEBHOOK (RAW BODY ONLY) ---------------- */
-app.post(
-  '/razorpay-webhook',
-  express.raw({ type: 'application/json' }),
-  (req, res) => {
-    try {
-      const webhookSecret = process.env.WEBHOOK_SECRET;
-      const signature = req.headers['x-razorpay-signature'];
+/* =============================
+   RAZORPAY WEBHOOK
+============================= */
+app.post('/razorpay-webhook', (req, res) => {
 
-      const expectedSignature = crypto
-        .createHmac('sha256', webhookSecret)
-        .update(req.body)
-        .digest('hex');
+  const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
 
-      if (signature !== expectedSignature) {
-        return res.status(400).send('Invalid signature');
-      }
+  const signature = req.headers['x-razorpay-signature'];
 
-      const event = JSON.parse(req.body.toString());
+  const expectedSignature = crypto
+    .createHmac('sha256', secret)
+    .update(req.body)
+    .digest('hex');
 
-      if (event.event === 'payment.captured') {
-        const payment = event.payload.payment.entity;
-
-        console.log('✅ PAYMENT CONFIRMED');
-        console.log('Payment ID:', payment.id);
-        console.log('Amount:', payment.amount / 100);
-        console.log('Email:', payment.email);
-
-        // 👉 SAVE TO DB
-        // 👉 UNLOCK COURSE
-        // 👉 SEND WHATSAPP / EMAIL
-      }
-
-      res.json({ status: 'ok' });
-
-    } catch (err) {
-      console.error('Webhook Error:', err);
-      res.status(500).send('Webhook error');
-    }
+  if (signature !== expectedSignature) {
+    return res.status(400).send('Invalid signature');
   }
-);
 
-/* ---------------- START SERVER ---------------- */
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  const event = JSON.parse(req.body.toString());
+
+  if (event.event === 'payment.captured') {
+    const payment = event.payload.payment.entity;
+
+    console.log('✅ PAYMENT SUCCESS');
+    console.log('Payment ID:', payment.id);
+    console.log('Amount:', payment.amount / 100);
+    console.log('Email:', payment.email);
+
+    // 👉 SAVE TO DATABASE
+    // 👉 ACTIVATE COURSE
+    // 👉 SEND WHATSAPP MESSAGE
+  }
+
+  res.json({ status: 'ok' });
 });
 
+/* =============================
+   START SERVER
+============================= */
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () =>
+  console.log(`🚀 Server running on port ${PORT}`)
+);
