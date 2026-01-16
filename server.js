@@ -1,4 +1,4 @@
-// require('dotenv').config();
+require('dotenv').config();
 const express = require('express');
 const crypto = require('crypto');
 const cors = require('cors');
@@ -112,9 +112,9 @@ app.post("/api/verify-otp", async (req, res) => {
   delete OTP_STORE[phone];
   VERIFIED_USERS[phone] = true;
 
-  // Optionally: Save user here in DB or rely on frontend save-client API
+  const redirectUrl = `https://www.tusharbhumkar.com/`;
 
-  res.json({ verified: true });
+  res.json({ verified: true, redirectUrl });
 });
 
 /* =========================
@@ -165,40 +165,6 @@ app.post('/api/save-client', async (req, res) => {
 });
 
 /* =========================
-   SAVE PAYMENT TO DB
-========================= */
-app.post('/api/save-payment', async (req, res) => {
-  const {
-    razorpay_payment_id,
-    name,
-    phone,
-    email,
-    dob,
-    age,
-    offerTitle,
-    course,
-    baseAmount,
-    gstAmount,
-    totalAmount
-  } = req.body;
-
-  try {
-    const result = await pool.query(
-      `INSERT INTO payments 
-       (razorpay_payment_id, name, phone, email, dob, age, offer_title, course, base_amount, gst_amount, total_amount)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-       RETURNING id`,
-      [razorpay_payment_id, name, phone, email, dob, age, offerTitle, course, baseAmount, gstAmount, totalAmount]
-    );
-
-    res.json({ success: true, id: result.rows[0].id });
-  } catch (err) {
-    console.error('Save payment error:', err);
-    res.status(500).json({ success: false, error: 'Internal error' });
-  }
-});
-
-/* =========================
    RAZORPAY WEBHOOK
 ========================= */
 app.post(
@@ -226,7 +192,7 @@ app.post(
       console.log('✅ PAYMENT SUCCESS');
       console.log(p.id, p.amount / 100, p.email);
 
-      // 👉 TODO: Update payment status in DB using p.id or p.email if needed
+      // 👉 Update DB using email / phone
     }
 
     res.json({ status: 'ok' });
