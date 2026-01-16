@@ -112,9 +112,7 @@ app.post("/api/verify-otp", async (req, res) => {
   delete OTP_STORE[phone];
   VERIFIED_USERS[phone] = true;
 
-  const redirectUrl = `https://www.tusharbhumkar.com/`;
-
-  res.json({ verified: true, redirectUrl });
+  res.json({ verified: true,});
 });
 
 /* =========================
@@ -206,4 +204,5 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
 });
+
 
