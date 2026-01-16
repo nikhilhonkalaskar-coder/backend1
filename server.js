@@ -112,6 +112,8 @@ app.post("/api/verify-otp", async (req, res) => {
   delete OTP_STORE[phone];
   VERIFIED_USERS[phone] = true;
 
+  // Optionally: Save user here in DB or rely on frontend save-client API
+
   res.json({ verified: true });
 });
 
@@ -163,6 +165,40 @@ app.post('/api/save-client', async (req, res) => {
 });
 
 /* =========================
+   SAVE PAYMENT TO DB
+========================= */
+app.post('/api/save-payment', async (req, res) => {
+  const {
+    razorpay_payment_id,
+    name,
+    phone,
+    email,
+    dob,
+    age,
+    offerTitle,
+    course,
+    baseAmount,
+    gstAmount,
+    totalAmount
+  } = req.body;
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO payments 
+       (razorpay_payment_id, name, phone, email, dob, age, offer_title, course, base_amount, gst_amount, total_amount)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+       RETURNING id`,
+      [razorpay_payment_id, name, phone, email, dob, age, offerTitle, course, baseAmount, gstAmount, totalAmount]
+    );
+
+    res.json({ success: true, id: result.rows[0].id });
+  } catch (err) {
+    console.error('Save payment error:', err);
+    res.status(500).json({ success: false, error: 'Internal error' });
+  }
+});
+
+/* =========================
    RAZORPAY WEBHOOK
 ========================= */
 app.post(
@@ -190,7 +226,7 @@ app.post(
       console.log('✅ PAYMENT SUCCESS');
       console.log(p.id, p.amount / 100, p.email);
 
-      // 👉 Update DB using email / phone
+      // 👉 TODO: Update payment status in DB using p.id or p.email if needed
     }
 
     res.json({ status: 'ok' });
@@ -204,5 +240,3 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
 });
-
-
