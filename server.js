@@ -116,7 +116,7 @@ app.post("/api/verify-otp", async (req, res) => {
 });
 
 /* =========================
-   SAVE CLIENT TO DB
+   SAVE CLIENT TO DB AND REDIRECT
 ========================= */
 app.post('/api/save-client', async (req, res) => {
   try {
@@ -124,37 +124,32 @@ app.post('/api/save-client', async (req, res) => {
       name,
       phone,
       email,
-      dob,
-      age,
-      batchMode,
-      offerTitle,
-      course,
-      baseAmount,
-      gstAmount,
-      totalAmount
+      city, // ADDED
+      redirectUrl // Optional: custom redirect URL from request
     } = req.body;
 
     const result = await pool.query(
       `INSERT INTO clients
-       (name, phone, email, dob, age, batch_mode, offer_title, course, base_amount, gst_amount, total_amount)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+       (name, phone, email, city)
+       VALUES ($1,$2,$3,$4)
        RETURNING id`,
       [
         name,
         phone,
         email,
-        dob,
-        age,
-        batchMode,
-        offerTitle,
-        course,
-        baseAmount,
-        gstAmount,
-        totalAmount
+        city // ADDED
       ]
     );
 
-    res.json({ success: true, id: result.rows[0].id });
+    // Default redirect URL or use custom one from request
+    const defaultRedirectUrl = process.env.DEFAULT_REDIRECT_URL || 'https://www.tusharbhumkar.com/';
+    const finalRedirectUrl = redirectUrl || defaultRedirectUrl;
+
+    res.json({ 
+      success: true, 
+      id: result.rows[0].id,
+      redirectUrl: finalRedirectUrl
+    });
 
   } catch (err) {
     console.error('Save client error:', err);
@@ -163,39 +158,34 @@ app.post('/api/save-client', async (req, res) => {
 });
 
 /* =========================
-   RAZORPAY WEBHOOK
+   REDIRECT ENDPOINT
 ========================= */
-app.post(
-  '/razorpay-webhook',
-  express.raw({ type: 'application/json' }),
-  (req, res) => {
-
-    const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
-    const signature = req.headers['x-razorpay-signature'];
-
-    const expected = crypto
-      .createHmac('sha256', secret)
-      .update(req.body)
-      .digest('hex');
-
-    if (signature !== expected) {
-      return res.status(400).send('Invalid signature');
+app.get('/redirect/:clientId', async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const { url } = req.query;
+    
+    // Verify client exists in DB
+    const clientResult = await pool.query(
+      'SELECT id, name FROM clients WHERE id = $1',
+      [clientId]
+    );
+    
+    if (clientResult.rows.length === 0) {
+      return res.status(404).send('Client not found');
     }
-
-    const event = JSON.parse(req.body.toString());
-
-    if (event.event === 'payment.captured') {
-      const p = event.payload.payment.entity;
-
-      console.log('✅ PAYMENT SUCCESS');
-      console.log(p.id, p.amount / 100, p.email);
-
-      // 👉 Update DB using email / phone
-    }
-
-    res.json({ status: 'ok' });
+    
+    // Redirect to the specified URL or default
+    const redirectUrl = url || process.env.DEFAULT_REDIRECT_URL || 'https://www.tusharbhumkar.com/';
+    
+    console.log(`Redirecting client ${clientId} to: ${redirectUrl}`);
+    res.redirect(redirectUrl);
+    
+  } catch (err) {
+    console.error('Redirect error:', err);
+    res.status(500).send('Internal server error');
   }
-);
+});
 
 /* =========================
    START SERVER
@@ -204,4 +194,3 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
 });
-
